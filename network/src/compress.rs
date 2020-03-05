@@ -32,7 +32,7 @@ impl Message {
     /// create from uncompressed raw data
     fn from_raw(data: Bytes) -> Self {
         let mut inner = BytesMut::from(&[UNCOMPRESS_FLAG][..]);
-        inner.unsplit(BytesMut::from(data));
+        inner.unsplit(BytesMut::from(data.as_ref()));
         Self { inner }
     }
 
@@ -47,7 +47,7 @@ impl Message {
             let input = self.inner.split_off(1);
             match SnapEncoder::new().compress_vec(&input) {
                 Ok(res) => {
-                    self.inner.unsplit(BytesMut::from(res));
+                    self.inner.unsplit(BytesMut::from(res.as_slice()));
                     self.set_compress_flag();
                 }
                 Err(e) => {
@@ -72,8 +72,8 @@ impl Message {
                 }
             }
         } else {
-            self.inner.split_to(1);
-            Ok(self.inner.take().freeze())
+            let _ = self.inner.split_to(1);
+            Ok(self.inner.freeze())
         }
     }
 
@@ -98,13 +98,13 @@ pub fn decompress(src: BytesMut) -> Result<Bytes, io::Error> {
 
 #[cfg(test)]
 mod test {
-    use super::{Bytes, Message, COMPRESSION_SIZE_THRESHOLD};
+    use super::{Bytes, BytesMut, Message, COMPRESSION_SIZE_THRESHOLD};
 
     #[test]
     fn test_no_need_compress() {
         let cmp_data = Message::from_raw(Bytes::from("1222")).compress();
 
-        let msg = Message::from_compressed(cmp_data.into());
+        let msg = Message::from_compressed(BytesMut::from(cmp_data.as_ref()));
 
         assert!(!msg.compress_flag());
 
@@ -118,7 +118,7 @@ mod test {
         let raw_data = Bytes::from(vec![1; COMPRESSION_SIZE_THRESHOLD + 1]);
         let cmp_data = Message::from_raw(raw_data.clone()).compress();
 
-        let msg = Message::from_compressed(cmp_data.into());
+        let msg = Message::from_compressed(BytesMut::from(cmp_data.as_ref()));
         assert!(msg.compress_flag());
 
         let demsg = msg.decompress().unwrap();
