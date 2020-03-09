@@ -3,6 +3,7 @@ use crate::synchronizer::Synchronizer;
 use crate::{Status, StatusCode, MAX_BLOCKS_IN_TRANSIT_PER_PEER, MAX_HEADERS_LEN};
 use ckb_logger::debug;
 use ckb_network::{CKBProtocolContext, PeerIndex};
+use ckb_store::ChainStore;
 use ckb_types::{packed, prelude::*};
 
 pub struct GetBlocksProcess<'a> {
@@ -37,13 +38,13 @@ impl<'a> GetBlocksProcess<'a> {
                 MAX_HEADERS_LEN,
             ));
         }
-        let snapshot = self.synchronizer.shared.snapshot();
+        let active_chain = self.synchronizer.shared.active_chain();
 
         for block_hash in block_hashes.iter().take(MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
             debug!("get_blocks {} from peer {:?}", block_hash, self.peer);
             let block_hash = block_hash.to_entity();
 
-            if !snapshot.contains_block_status(&block_hash, BlockStatus::BLOCK_VALID) {
+            if !active_chain.contains_block_status(&block_hash, BlockStatus::BLOCK_VALID) {
                 debug!(
                     "ignoring get_block {} request from peer={} for unverified",
                     block_hash, self.peer
@@ -59,7 +60,7 @@ impl<'a> GetBlocksProcess<'a> {
                 break;
             }
 
-            if let Some(block) = snapshot.get_block(&block_hash) {
+            if let Some(block) = active_chain.store().get_block(&block_hash) {
                 debug!(
                     "respond_block {} {} to peer {:?}",
                     block.number(),
