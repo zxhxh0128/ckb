@@ -5,6 +5,7 @@ use crate::types::InflightBlocks;
 use crate::MAX_PEERS_PER_BLOCK;
 use crate::{NetworkProtocol, Status, StatusCode};
 use ckb_network::PeerIndex;
+use ckb_store::ChainStore;
 use ckb_tx_pool::{PlugTarget, TxEntry};
 use ckb_types::prelude::*;
 use ckb_types::{
@@ -21,11 +22,18 @@ use std::sync::Arc;
 #[test]
 fn test_in_block_status_map() {
     let (relayer, _) = build_chain(5);
-
+    let header = {
+        let shared = relayer.shared.shared();
+        let parent = shared
+            .store()
+            .get_block_hash(4)
+            .and_then(|block_hash| shared.store().get_block(&block_hash))
+            .unwrap();
+        new_header_builder(&relayer.shared.shared(), &parent.header()).build()
+    };
     let block = BlockBuilder::default()
-        .number(5.pack())
-        .timestamp(unix_time_as_millis().pack())
         .transaction(TransactionBuilder::default().build())
+        .header(header)
         .build();
 
     let mut prefilled_transactions_indexes = HashSet::new();
